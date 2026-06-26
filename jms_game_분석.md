@@ -94,7 +94,10 @@ boot → title → intro → consult → verdict → end
 ### 사운드 — Web Audio API 절차적 합성 (저작권 회피)
 - `Audio2` IIFE(1181행)가 Oscillator/Noise로 실시간 SFX 생성
 - blip(타이핑) / ding(성공) / pick(클릭) / drop(배치) / buzz(오류) / stamp / page / jingle(엔딩) / sad
-- 마스터 게인 0.32, 음소거 토글 지원
+- **BGM**: 절차적 앰비언트 루프(72 BPM, Am-F-C-G 진행) — 패드+베이스+아르페지오를 룩어헤드 스케줄러로 무한 재생. 외부 음원 없이 코드로만 생성해 단일 HTML·저작권 무관 특성 유지
+  - 타이틀의 "진료 시작하기" 클릭(유저 제스처로 AudioContext 활성화) 시 `startMusic()`
+  - 진단 승인 절정에서 `duckMusic()`(볼륨 낮춤) → 엔딩에서 `stopMusic()`로 징글·스탬프가 묻히지 않게 처리
+- 마스터 게인 0.32, 음소거 토글은 SFX·BGM 동시 적용
 
 ### 폰트
 - Google Fonts: Gothic A1 / Jua / Do Hyeon / Black Han Sans (한글)
