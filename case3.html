@@ -188,6 +188,40 @@ function buildBackground(){
   // 뒤 벽 패널(우드)
   for(let i=0;i<7;i++){ const x=90+i*160; g.fillStyle=i%2?'#3d2c1a':'#33251694'; g.fillRect(x,120,140,VH-120);
     g.strokeStyle='rgba(0,0,0,.3)'; g.lineWidth=2; g.strokeRect(x,120,140,VH-120); }
+  // 방청석(뒤쪽 2층 갤러리) — 멀리 앉은 재판 방청객 실루엣.
+  //  대화 시 '시점이 멀리' 보이도록 법정 뒤편에 상시 렌더된다(배경에 1회 굽는다).
+  (function(){
+    const GY=104, GH=108;                          // 갤러리 벽감 영역(y=104~212, 화자 초상 위쪽)
+    let rc=g.createLinearGradient(0,GY,0,GY+GH);   // 천장 아래 어두운 벽감
+    rc.addColorStop(0,'#0b0805'); rc.addColorStop(.5,'#170f09'); rc.addColorStop(1,'#0d0906');
+    g.fillStyle=rc; g.fillRect(0,GY,VW,GH);
+    g.fillStyle='rgba(0,0,0,.45)'; g.fillRect(0,GY,VW,12);      // 상단 천장 그림자
+    // 방청객 실루엣 — 뒷줄(작고 흐림) → 앞줄(크고 진함)
+    const palH=['#2b2018','#241a12','#2e2119','#221810','#332417'];
+    const palS=['#1a130c','#150f08','#1c140d','#130d07','#20160c'];
+    const rows=[{y:GY+40,s:.80,a:.58,step:40},{y:GY+76,s:1.0,a:.92,step:48}];
+    rows.forEach(row=>{
+      for(let x=20;x<VW-20;x+=row.step){
+        const k=Math.floor(Math.random()*palH.length);
+        const s=row.s*(0.9+Math.random()*0.25);
+        const hx=x+(Math.random()*10-5), hy=row.y+(Math.random()*4-2);
+        g.globalAlpha=row.a;
+        g.fillStyle=palS[k]; g.beginPath(); g.ellipse(hx,hy+17*s,21*s,15*s,0,0,6.28); g.fill();  // 어깨
+        g.fillStyle=palH[k]; g.beginPath(); g.ellipse(hx,hy,10*s,12*s,0,0,6.28); g.fill();         // 머리
+        g.globalAlpha=row.a*0.4; g.fillStyle='rgba(216,178,74,.5)';                                 // 금빛 림라이트
+        g.beginPath(); g.ellipse(hx-4*s,hy-4*s,3*s,4*s,0,0,6.28); g.fill();
+      }
+    });
+    g.globalAlpha=1;
+    // 방청석 우드 난간
+    g.fillStyle='#3a2915'; g.fillRect(0,GY+GH-10,VW,14);
+    let rail=g.createLinearGradient(0,GY+GH-10,0,GY+GH+4);
+    rail.addColorStop(0,'#7c5836'); rail.addColorStop(1,'#3a2915');
+    g.fillStyle=rail; g.fillRect(0,GY+GH-8,VW,9);
+    g.strokeStyle='rgba(0,0,0,.4)'; g.lineWidth=2;
+    g.beginPath(); g.moveTo(0,GY+GH-8); g.lineTo(VW,GY+GH-8); g.stroke();
+    g.fillStyle='rgba(0,0,0,.3)'; for(let x=40;x<VW;x+=90){ g.fillRect(x,GY+GH-6,5,10); }  // 난간 지지 기둥
+  })();
   // 좌우 보라 배너
   [70,VW-70-120].forEach(bx=>{
     let bg2=g.createLinearGradient(0,60,0,VH); bg2.addColorStop(0,'#4a3568'); bg2.addColorStop(1,'#2c1e44');
