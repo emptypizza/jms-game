@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>중립재판 · CASE 3 — 진실은, 언제나 그 사이에 있다</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gothic+A1:wght@400;700;900&family=Jua&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;background:#0d0a07;overflow:hidden;
+    font-family:'Gothic A1',sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:
+    radial-gradient(120% 120% at 50% 0%,#1a130c 0%,#0d0a07 70%)}
+  canvas{display:block;image-rendering:auto;touch-action:none;
+    box-shadow:0 24px 80px rgba(0,0,0,.6),0 0 0 1px rgba(216,178,74,.12)}
+  #hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+    font-family:'Gothic A1';font-size:12px;color:#7a6a4a;letter-spacing:.06em;opacity:.7;pointer-events:none}
+  #load{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;color:#d8b24a;font-family:'Do Hyeon';background:#0d0a07;z-index:9}
+  #load .r{width:44px;height:44px;border:3px solid rgba(216,178,74,.25);border-top-color:#d8b24a;
+    border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<a id="tohub" href="index.html" style="position:fixed;left:14px;top:14px;z-index:9999;font-family:'Gothic A1',system-ui,sans-serif;font-size:14px;font-weight:700;color:#f4ead2;background:rgba(20,14,8,.76);border:1px solid rgba(216,178,74,.5);border-radius:9px;padding:8px 13px;text-decoration:none;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)">← 메인</a>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div id="hint">중립재판 · 외전 CASE 3 — 클릭 / 탭으로 진행</div>
+<div id="load"><div class="r"></div><div>법정을 준비하는 중…</div></div>
+<script>
+(function(){
+"use strict";
+/* ============================================================
+   중립재판 · CASE 3 「진실은, 언제나 그 사이에 있다」
+   정신과 의사 이현중이 '중립 재판장'이 되어 법정을 운영한다.
+   검사(과잉처벌)와 변호사(과잉면책) 사이에서 진실을 찾는다.
+   단일 HTML · Canvas2D · Web Audio 절차적 사운드 · 포인터/터치
+   ============================================================ */
+
+/* ---------- 상수 · 팔레트 ---------- */
+const VW=1280, VH=720;
+const C = {
+  bg0:'#241a12', bg1:'#12100c', wood:'#5b4026', woodHi:'#7c5836', woodDk:'#3a2915',
+  gold:'#d8b24a', goldHi:'#f4dd90', goldDk:'#8a6a20',
+  cream:'#f4ead2', ink:'#171c2c', inkHi:'#38507e',
+  purple:'#4a3568', purpleHi:'#8163b4', banner:'#3b2a55',
+  crimson:'#7c2333', crimsonHi:'#d24455',
+  navy:'#25406e', navyHi:'#5183d0',
+  white:'#f7f3ea', paper:'#efe4c8',
+  green:'#43c47a', red:'#e64a54', amber:'#e6a43a',
+  shade:'rgba(0,0,0,.42)'
+};
+const F = {
+  title:"'Black Han Sans',sans-serif",
+  head:"'Do Hyeon',sans-serif",
+  body:"'Gothic A1',sans-serif",
+  jua:"'Jua',sans-serif"
+};
+
+/* ---------- 캔버스 · 스케일 ---------- */
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let scale=1, ox=0, oy=0, DPR=Math.min(window.devicePixelRatio||1,2);
+function resize(){
+  const ww=window.innerWidth, wh=window.innerHeight;
+  scale=Math.min(ww/VW, wh/VH);
+  const w=Math.round(VW*scale), h=Math.round(VH*scale);
+  cv.style.width=w+'px'; cv.style.height=h+'px';
+  cv.width=Math.round(VW*scale*DPR); cv.height=Math.round(VH*scale*DPR);
+  ctx.setTransform(scale*DPR,0,0,scale*DPR,0,0);
+  const r=cv.getBoundingClientRect(); ox=r.left; oy=r.top;
+}
+window.addEventListener('resize',resize);
+
+/* ---------- 입력 ---------- */
+const pointer={x:-99,y:-99,down:false};
+function toV(cx,cy){ const r=cv.getBoundingClientRect(); return {x:(cx-r.left)/scale, y:(cy-r.top)/scale}; }
+function onDown(cx,cy){ const p=toV(cx,cy); pointer.x=p.x; pointer.y=p.y; pointer.down=true; Audio.resume(); handleTap(p.x,p.y); }
+function onMove(cx,cy){ const p=toV(cx,cy); pointer.x=p.x; pointer.y=p.y; }
+cv.addEventListener('mousedown',e=>onDown(e.clientX,e.clientY));
+cv.addEventListener('mousemove',e=>onMove(e.clientX,e.clientY));
+window.addEventListener('mouseup',()=>pointer.down=false);
+cv.addEventListener('touchstart',e=>{e.preventDefault(); const t=e.changedTouches[0]; onDown(t.clientX,t.clientY);},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault(); const t=e.changedTouches[0]; onMove(t.clientX,t.clientY);},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault(); pointer.down=false;},{passive:false});
+
+/* ---------- 버튼 ---------- */
+let buttons=[];
+function btn(o){ buttons.push(Object.assign({w:200,h:60,style:'wood',enabled:true,vis:true,_t:0},o)); return buttons[buttons.length-1]; }
+function clearButtons(){ buttons=[]; }
+function handleTap(x,y){
+  if(overlayTap && overlayTap(x,y)) return;
+  for(let i=buttons.length-1;i>=0;i--){ const b=buttons[i];
+    if(b.vis && b.enabled && x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){ b._t=1; Audio.tap(); b.on&&b.on(); return; } }
+  if(sceneTap) sceneTap(x,y);
+}
+let overlayTap=null, sceneTap=null;
+
+/* ---------- 트윈 · 이펙트 ---------- */
+let shakeT=0, shakeAmp=0;
+function shake(a,t){ shakeAmp=Math.max(shakeAmp,a); shakeT=Math.max(shakeT,t); }
+let flashCol=null, flashT=0;
+function flash(col,t){ flashCol=col; flashT=t; }
+let bursts=[]; // 정숙!/인정!/기각!/이의있음!
+function burst(text,col,big){ bursts.push({text,col,t:0,life:1.15,big:big||false}); Audio.objection(); shake(big?16:9,0.35); }
+let particles=[]; // 종이 파티클
+function spawnDust(x,y,n,col){ for(let i=0;i<n;i++){ particles.push({x,y,vx:(Math.random()-.5)*3,vy:-Math.random()*3-1,g:.12,life:1,t:0,col:col||C.cream,s:2+Math.random()*3,paper:false}); } }
+function initPaper(){ particles=[]; for(let i=0;i<10;i++) particles.push(newPaper(true)); }
+function newPaper(rand){ return {x:Math.random()*VW, y:rand?Math.random()*VH:-20, vx:(Math.random()-.5)*.5, vy:.4+Math.random()*.5, rot:Math.random()*6.28, vr:(Math.random()-.5)*.03, life:1,t:0,paper:true, s:9+Math.random()*8}; }
+
+/* ---------- 오디오 (Web Audio 절차적) ---------- */
+const Audio=(function(){
+  let ac=null, master=null, muted=false;
+  function ensure(){ if(ac) return; try{ ac=new (window.AudioContext||window.webkitAudioContext)(); master=ac.createGain(); master.gain.value=.5; master.connect(ac.destination);}catch(e){} }
+  function resume(){ ensure(); if(ac && ac.state==='suspended') ac.resume(); }
+  function tone(f,d,type,g,slideTo){ if(!ac||muted) return; const o=ac.createOscillator(),ga=ac.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(f,ac.currentTime);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo),ac.currentTime+d);
+    ga.gain.setValueAtTime(0.0001,ac.currentTime); ga.gain.exponentialRampToValueAtTime(g||.3,ac.currentTime+.01);
+    ga.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+d); o.connect(ga); ga.connect(master); o.start(); o.stop(ac.currentTime+d+.02); }
+  function noise(d,g,filterF){ if(!ac||muted) return; const n=ac.createBuffer(1,ac.sampleRate*d,ac.sampleRate); const dt=n.getChannelData(0);
+    for(let i=0;i<dt.length;i++) dt[i]=(Math.random()*2-1); const src=ac.createBufferSource(); src.buffer=n;
+    const bp=ac.createBiquadFilter(); bp.type='lowpass'; bp.frequency.value=filterF||1200; const ga=ac.createGain();
+    ga.gain.setValueAtTime(g||.3,ac.currentTime); ga.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+d);
+    src.connect(bp); bp.connect(ga); ga.connect(master); src.start(); src.stop(ac.currentTime+d); }
+  return {
+    resume, ensure,
+    tap(){ tone(520,.05,'square',.12); },
+    page(){ noise(.14,.22,2600); },
+    ding(){ tone(880,.12,'sine',.25); setTimeout(()=>tone(1320,.18,'sine',.22),70); },
+    buzz(){ tone(150,.32,'sawtooth',.32,80); shake(7,.3); },
+    gavel(){ noise(.10,.5,420); tone(120,.16,'square',.3,60); setTimeout(()=>{noise(.08,.35,300); tone(90,.14,'square',.25,50);},90); },
+    objection(){ tone(330,.16,'sawtooth',.28); setTimeout(()=>tone(247,.22,'sawtooth',.26),90); },
+    win(){ const seq=[[523,0],[659,120],[784,240],[1046,380]]; seq.forEach(s=>setTimeout(()=>tone(s[0],.5,'triangle',.28),s[1])); },
+    lose(){ tone(330,.5,'sawtooth',.3,110); setTimeout(()=>tone(220,.6,'sawtooth',.28,90),200); },
+    scale(){ tone(660,.1,'sine',.16); },
+    toggleMute(){ muted=!muted; if(master) master.gain.value=muted?0:.5; return muted; },
+    isMuted(){ return muted; }
+  };
+})();
+
+/* ---------- 텍스트 유틸 ---------- */
+function wrap(text,maxW,font){ ctx.font=font; const out=[]; let line='';
+  for(let i=0;i<text.length;i++){ const ch=text[i];
+    if(ch==='\n'){ out.push(line); line=''; continue; }
+    const test=line+ch;
+    if(ctx.measureText(test).width>maxW && line){ out.push(line); line=ch; }
+    else line=test; }
+  if(line) out.push(line); return out; }
+function rr(x,y,w,h,r){ r=Math.min(r,w/2,h/2); ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function grad(x0,y0,x1,y1,stops){ const g=ctx.createLinearGradient(x0,y0,x1,y1); stops.forEach(s=>g.addColorStop(s[0],s[1])); return g; }
+
+/* ============================================================
+   배경 · 법정 (절차적)
+   ============================================================ */
+let bgCanvas=null;
+function buildBackground(){
+  bgCanvas=document.createElement('canvas'); bgCanvas.width=VW; bgCanvas.height=VH;
+  const g=bgCanvas.getContext('2d');
+  // 벽 그래디언트
+  let wall=g.createLinearGradient(0,0,0,VH);
+  wall.addColorStop(0,'#3a2c1c'); wall.addColorStop(.5,'#2c2014'); wall.addColorStop(1,'#1c140c');
+  g.fillStyle=wall; g.fillRect(0,0,VW,VH);
+  // 상단 아치 그림자
+  g.fillStyle='rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(VW/2,-120,VW*.7,300,0,0,6.28); g.fill();
+  // 뒤 벽 패널(우드)
+  for(let i=0;i<7;i++){ const x=90+i*160; g.fillStyle=i%2?'#3d2c1a':'#33251694'; g.fillRect(x,120,140,VH-120);
+    g.strokeStyle='rgba(0,0,0,.3)'; g.lineWidth=2; g.strokeRect(x,120,140,VH-120); }
+  // 좌우 보라 배너
+  [70,VW-70-120].forEach(bx=>{
+    let bg2=g.createLinearGradient(0,60,0,VH); bg2.addColorStop(0,'#4a3568'); bg2.addColorStop(1,'#2c1e44');
+    g.fillStyle=bg2; g.fillRect(bx,60,120,VH-60);
+    // 술 장식
+    g.fillStyle='#caa64a'; for(let k=0;k<8;k++){ g.beginPath(); g.moveTo(bx+8+k*14,VH); g.lineTo(bx+14+k*14,VH-22); g.lineTo(bx+20+k*14,VH); g.fill(); }
+    // 저울 문양
+    g.strokeStyle='rgba(240,222,150,.5)'; g.lineWidth=4; g.save(); g.translate(bx+60,220);
+    g.beginPath(); g.moveTo(0,-40); g.lineTo(0,30); g.moveTo(-42,-24); g.lineTo(42,-24); g.stroke();
+    g.beginPath(); g.arc(-42,-8,16,0,3.14); g.arc(42,-8,16,0,3.14); g.stroke();
+    g.beginPath(); g.moveTo(-42,-24); g.lineTo(-42,-8); g.moveTo(42,-24); g.lineTo(42,-8); g.stroke();
+    g.restore();
+  });
+  // 중앙 판사석 뒤 금빛 원형 엠블럼(저울)
+  g.save(); g.translate(VW/2,225);
+  const em=g.createRadialGradient(0,0,20,0,0,150); em.addColorStop(0,'#6a5326'); em.addColorStop(.7,'#4a3a1c'); em.addColorStop(1,'#2c2212');
+  g.fillStyle=em; g.beginPath(); g.arc(0,0,150,0,6.28); g.fill();
+  g.strokeStyle='#d8b24a'; g.lineWidth=8; g.beginPath(); g.arc(0,0,150,0,6.28); g.stroke();
+  g.strokeStyle='rgba(244,221,144,.85)'; g.lineWidth=7; // 저울
+  g.beginPath(); g.moveTo(0,-95); g.lineTo(0,70); g.moveTo(-92,-58); g.lineTo(92,-58); g.stroke();
+  g.beginPath(); g.arc(-92,-20,34,0,3.14); g.arc(92,-20,34,0,3.14); g.stroke();
+  g.beginPath(); g.moveTo(-92,-58); g.lineTo(-92,-20); g.moveTo(92,-58); g.lineTo(92,-20); g.stroke();
+  g.beginPath(); g.arc(0,-95,10,0,6.28); g.fillStyle='#f4dd90'; g.fill();
+  g.restore();
+  // 판사석(중앙 높은 우드 단상)
+  g.fillStyle='#4a3418'; g.fillRect(VW/2-260,360,520,300);
+  let bench=g.createLinearGradient(0,360,0,660); bench.addColorStop(0,'#6b4c26'); bench.addColorStop(1,'#3c2a14');
+  g.fillStyle=bench; g.fillRect(VW/2-240,380,480,280);
+  g.strokeStyle='#8a6a30'; g.lineWidth=5; g.strokeRect(VW/2-240,380,480,280);
+  // 판사석 금장식
+  g.fillStyle='#caa64a'; g.fillRect(VW/2-240,378,480,10);
+  for(let i=0;i<5;i++){ const px=VW/2-200+i*100; g.fillStyle='#7a5a2a'; g.fillRect(px,410,60,220);
+    g.strokeStyle='#9a7838'; g.lineWidth=3; g.strokeRect(px,410,60,220); }
+  // 바닥
+  let fl=g.createLinearGradient(0,640,0,VH); fl.addColorStop(0,'#241a10'); fl.addColorStop(1,'#0e0a06');
+  g.fillStyle=fl; g.fillRect(0,640,VW,VH-640);
+  // 비네트
+  const vg=g.createRadialGradient(VW/2,VH/2,220,VW/2,VH/2,760); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.55)');
+  g.fillStyle=vg; g.fillRect(0,0,VW,VH);
+}
+
+/* ============================================================
+   인물 초상 (절차적, 플랫 일러스트)
+   ============================================================ */
+const CHARS={
+  judge:{name:'재판장 이현중', hair:'#241c18', skin:'#e9c9a6', robe:'#2a2340', robe2:'#4a3568', accent:C.gold, glasses:true, tag:C.purpleHi},
+  mayoi:{name:'마요이 아야사토', hair:'#2a1e26', skin:'#f0d0b0', robe:'#26203a', robe2:'#5b3f86', accent:C.gold, bun:true, tag:C.purpleHi},
+  pros:{name:'검사 서권일', hair:'#161314', skin:'#e7c39c', robe:'#3a1420', robe2:'#7c2333', accent:C.crimsonHi, slick:true, tag:C.crimson},
+  def:{name:'변호사 나단우', hair:'#20211f', skin:'#eccaa4', robe:'#16233e', robe2:'#25406e', accent:C.navyHi, tidy:true, tag:C.navy},
+  accused:{name:'피고인 강도현', hair:'#26221c', skin:'#dcc0a0', robe:'#3a3630', robe2:'#55504a', accent:'#888', messy:true, tag:'#555'}
+};
+// expression: 'calm','tense','shock','sad','smile'
+function drawPortrait(x,y,s,def,expr,t){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  // 스포트라이트 패널
+  const sp=ctx.createRadialGradient(0,-30,20,0,-30,220); sp.addColorStop(0,'rgba(255,240,210,.14)'); sp.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=sp; ctx.beginPath(); ctx.arc(0,-20,220,0,6.28); ctx.fill();
+  const bob=Math.sin(t*3)* (expr==='tense'?3:1.4);
+  ctx.translate(0,bob);
+  // 어깨/로브
+  ctx.fillStyle=def.robe; ctx.beginPath();
+  ctx.moveTo(-150,180); ctx.quadraticCurveTo(-120,40,-60,20); ctx.lineTo(60,20);
+  ctx.quadraticCurveTo(120,40,150,180); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=def.robe2; ctx.beginPath();
+  ctx.moveTo(-60,20); ctx.lineTo(0,150); ctx.lineTo(60,20); ctx.quadraticCurveTo(0,40,-60,20); ctx.fill();
+  // 넥타이/카라
+  ctx.fillStyle=def.accent; ctx.beginPath(); ctx.moveTo(-14,26); ctx.lineTo(14,26); ctx.lineTo(6,120); ctx.lineTo(-6,120); ctx.fill();
+  ctx.fillStyle='#efe9dd'; ctx.beginPath(); ctx.moveTo(-30,20); ctx.lineTo(0,20); ctx.lineTo(-12,58); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(30,20); ctx.lineTo(0,20); ctx.lineTo(12,58); ctx.fill();
+  // 목
+  ctx.fillStyle=shade(def.skin,-18); ctx.fillRect(-22,-30,44,60);
+  // 머리
+  ctx.fillStyle=def.skin; ctx.beginPath(); ctx.ellipse(0,-70,58,66,0,0,6.28); ctx.fill();
+  ctx.fillStyle=shade(def.skin,-14); ctx.beginPath(); ctx.ellipse(20,-64,40,60,0,-0.4,2.6); ctx.fill();
+  ctx.fillStyle=def.skin; ctx.beginPath(); ctx.ellipse(-6,-72,52,62,0,0,6.28); ctx.fill();
+  // 귀
+  ctx.fillStyle=def.skin; ctx.beginPath(); ctx.ellipse(-54,-64,10,16,0,0,6.28); ctx.ellipse(54,-64,10,16,0,0,6.28); ctx.fill();
+  // 머리카락
+  ctx.fillStyle=def.hair;
+  if(def.bun){ ctx.beginPath(); ctx.arc(0,-138,26,0,6.28); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-60,-70); ctx.quadraticCurveTo(-72,-150,0,-146); ctx.quadraticCurveTo(72,-150,60,-70);
+    ctx.quadraticCurveTo(40,-120,0,-116); ctx.quadraticCurveTo(-40,-120,-60,-70); ctx.fill(); }
+  else if(def.slick){ ctx.beginPath(); ctx.moveTo(-58,-64); ctx.quadraticCurveTo(-64,-150,10,-140);
+    ctx.quadraticCurveTo(70,-136,58,-70); ctx.quadraticCurveTo(30,-118,-4,-110); ctx.quadraticCurveTo(-20,-104,-58,-64); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(58,-70); ctx.quadraticCurveTo(64,-40,44,-20); ctx.lineTo(40,-70); ctx.fill(); }
+  else if(def.messy){ ctx.beginPath(); ctx.moveTo(-60,-60);
+    for(let i=0;i<=10;i++){ const a=-Math.PI+i*Math.PI/10; const rr2=70+((i%2)?14:-6); ctx.lineTo(Math.cos(a)*rr2*0.85,-72+Math.sin(a)*rr2); }
+    ctx.quadraticCurveTo(40,-110,-4,-108); ctx.fill(); }
+  else{ // 단정/이현중·변호사
+    ctx.beginPath(); ctx.moveTo(-60,-66); ctx.quadraticCurveTo(-66,-150,0,-144);
+    ctx.quadraticCurveTo(66,-150,60,-66); ctx.quadraticCurveTo(34,-116,0,-112); ctx.quadraticCurveTo(-34,-116,-60,-66); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-4,-138); ctx.quadraticCurveTo(-40,-120,-52,-92); ctx.quadraticCurveTo(-30,-118,6,-116); ctx.fill(); }
+  // 눈썹
+  ctx.strokeStyle=shade(def.hair,10); ctx.lineWidth=6; ctx.lineCap='round';
+  let browY=-86, browTilt=0;
+  if(expr==='tense'||expr==='shock') browTilt=-8;
+  if(expr==='sad') browTilt=7;
+  ctx.beginPath(); ctx.moveTo(-34,browY+ (browTilt>0?0:0)); ctx.lineTo(-12,browY+browTilt);
+  ctx.moveTo(34,browY); ctx.lineTo(12,browY+browTilt); ctx.stroke();
+  // 눈
+  const eo = expr==='shock'?1.5:1;
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(-22,-72,12,10*eo,0,0,6.28); ctx.ellipse(22,-72,12,10*eo,0,0,6.28); ctx.fill();
+  ctx.fillStyle='#2a2018'; const pdx=(expr==='shock')?0:2;
+  ctx.beginPath(); ctx.arc(-22+pdx,-72,5,0,6.28); ctx.arc(22+pdx,-72,5,0,6.28); ctx.fill();
+  if(expr==='calm'||expr==='smile'){ ctx.strokeStyle=shade(def.skin,-30); ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(-32,-80); ctx.quadraticCurveTo(-22,-84,-12,-80); ctx.moveTo(12,-80); ctx.quadraticCurveTo(22,-84,32,-80); ctx.stroke(); }
+  // 안경
+  if(def.glasses){ ctx.strokeStyle='#20242e'; ctx.lineWidth=3.5;
+    ctx.beginPath(); ctx.ellipse(-22,-72,16,13,0,0,6.28); ctx.ellipse(22,-72,16,13,0,0,6.28); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6,-72); ctx.lineTo(6,-72); ctx.moveTo(-38,-74); ctx.lineTo(-52,-70); ctx.moveTo(38,-74); ctx.lineTo(52,-70); ctx.stroke();
+    ctx.fillStyle='rgba(200,225,255,.16)'; ctx.beginPath(); ctx.ellipse(-22,-72,15,12,0,0,6.28); ctx.ellipse(22,-72,15,12,0,0,6.28); ctx.fill(); }
+  // 코
+  ctx.strokeStyle=shade(def.skin,-28); ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(0,-70); ctx.lineTo(-4,-54); ctx.lineTo(2,-52); ctx.stroke();
+  // 입
+  ctx.strokeStyle='#8a4a44'; ctx.lineWidth=3.5;
+  ctx.beginPath();
+  if(expr==='shock'){ ctx.fillStyle='#5a2a2a'; ctx.ellipse(0,-42,10,9,0,0,6.28); ctx.fill(); }
+  else if(expr==='tense'){ ctx.moveTo(-16,-42); ctx.lineTo(16,-42); ctx.stroke(); }
+  else if(expr==='sad'){ ctx.moveTo(-14,-40); ctx.quadraticCurveTo(0,-48,14,-40); ctx.stroke(); }
+  else if(expr==='smile'){ ctx.moveTo(-14,-44); ctx.quadraticCurveTo(0,-34,14,-44); ctx.stroke(); }
+  else{ ctx.moveTo(-12,-44); ctx.quadraticCurveTo(0,-40,12,-44); ctx.stroke(); }
+  // 볼터치(피고인 반창고)
+  if(def.messy){ ctx.fillStyle='#e8d0a0'; ctx.save(); ctx.translate(38,-54); ctx.rotate(.5); ctx.fillRect(-9,-4,18,8); ctx.strokeStyle='#c8b080'; ctx.lineWidth=1; ctx.strokeRect(-9,-4,18,8); ctx.restore(); }
+  ctx.restore();
+}
+function shade(hex,amt){ // 밝기 조절
+  const n=parseInt(hex.slice(1),16); let r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
+  r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+
+/* ============================================================
+   저울 UI (중립 게이지) — 좌:검사 우:변호사
+   pros/def weight 1=과잉주장 남음, 0=걷어냄
+   ============================================================ */
+const scaleUI={angle:0, tAngle:0, pros:1, def:1, glow:0, x:VW/2, y:96};
+function updateScale(dt){
+  // 남은 무게 차이로 기울기, 둘 다 걷으면 수평+글로우
+  scaleUI.tAngle=(scaleUI.pros-scaleUI.def)*0.34;
+  scaleUI.angle+=(scaleUI.tAngle-scaleUI.angle)*Math.min(1,dt*6);
+  const balanced=(scaleUI.pros<0.05&&scaleUI.def<0.05);
+  scaleUI.glow+=((balanced?1:0)-scaleUI.glow)*Math.min(1,dt*3);
+}
+function drawScale(){
+  const x=scaleUI.x,y=scaleUI.y,a=scaleUI.angle;
+  ctx.save(); ctx.translate(x,y);
+  if(scaleUI.glow>0.02){ ctx.save(); ctx.globalAlpha=scaleUI.glow*.8; ctx.shadowColor=C.goldHi; ctx.shadowBlur=30;
+    ctx.strokeStyle=C.goldHi; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,10,60,0,6.28); ctx.stroke(); ctx.restore(); }
+  // 기둥
+  ctx.strokeStyle=C.gold; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,-28); ctx.lineTo(0,40); ctx.stroke();
+  ctx.fillStyle=C.goldDk; ctx.beginPath(); ctx.moveTo(-26,40); ctx.lineTo(26,40); ctx.lineTo(18,52); ctx.lineTo(-18,52); ctx.fill();
+  // 빔
+  ctx.save(); ctx.rotate(a);
+  ctx.strokeStyle=C.goldHi; ctx.lineWidth=6; ctx.beginPath(); ctx.moveTo(-90,-24); ctx.lineTo(90,-24); ctx.stroke();
+  ctx.fillStyle=C.gold; ctx.beginPath(); ctx.arc(0,-28,7,0,6.28); ctx.fill();
+  // 접시 (검사=좌 crimson, 변호사=우 navy) — 남은 무게만큼 아래로
+  drawPan(-90,-24,scaleUI.pros,C.crimsonHi,a);
+  drawPan(90,-24,scaleUI.def,C.navyHi,a);
+  ctx.restore();
+  ctx.restore();
+  // 라벨
+  ctx.font="16px "+F.head; ctx.textAlign='center';
+  ctx.fillStyle=C.crimsonHi; ctx.fillText('검사',x-90,y+74);
+  ctx.fillStyle=C.navyHi; ctx.fillText('변호사',x+90,y+74);
+  ctx.fillStyle=scaleUI.glow>.5?C.goldHi:'#9a8a6a'; ctx.font="14px "+F.head;
+  ctx.fillText(scaleUI.glow>.5?'◆ 중립 ◆':'중립', x, y-44);
+}
+function drawPan(px,py,weight,col,beamA){
+  const drop=30+weight*46;
+  ctx.save(); ctx.translate(px,py); ctx.rotate(-beamA);
+  ctx.strokeStyle='rgba(240,222,150,.6)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(-16,0); ctx.lineTo(0,drop-14); ctx.moveTo(16,0); ctx.lineTo(0,drop-14); ctx.stroke();
+  ctx.fillStyle=C.gold; ctx.strokeStyle=C.goldHi; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.ellipse(0,drop,22,7,0,0,6.28); ctx.fill(); ctx.stroke();
+  // 접시 위 '무게'(과잉주장 덩어리)
+  if(weight>0.05){ ctx.fillStyle=col; ctx.globalAlpha=.5+weight*.5;
+    ctx.beginPath(); ctx.ellipse(0,drop-8*weight,15*weight+3,10*weight+2,0,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
+  ctx.restore();
+}
+
+/* ============================================================
+   대사 시스템
+   ============================================================ */
+const Dlg={ who:'', col:C.white, text:'', shown:0, done:false, onDone:null, active:false, speed:44, tag:'#555', portraitKey:null, expr:'calm' };
+function say(charKey, text, onDone, expr){
+  const ch=CHARS[charKey]||{name:charKey,tag:'#555'};
+  Dlg.active=true; Dlg.who=ch.name; Dlg.tag=ch.tag||'#555'; Dlg.portraitKey=CHARS[charKey]?charKey:null;
+  Dlg.text=text; Dlg.shown=0; Dlg.done=false; Dlg.onDone=onDone||null; Dlg.expr=expr||'calm';
+  Audio.tap();
+}
+function dlgTap(){ if(!Dlg.active) return false;
+  if(!Dlg.done){ Dlg.shown=Dlg.text.length; Dlg.done=true; return true; }
+  const f=Dlg.onDone; Dlg.active=false; Dlg.onDone=null; if(f) f(); return true; }
+function updateDlg(dt){ if(Dlg.active&&!Dlg.done){ Dlg.shown+=Dlg.speed*dt; if(Dlg.shown>=Dlg.text.length){ Dlg.shown=Dlg.text.length; Dlg.done=true; } if(Math.random()<0.5) {} } }
+function drawDlg(){ if(!Dlg.active) return;
+  const bx=90,by=VH-186,bw=VW-180,bh=150;
+  // 초상
+  if(Dlg.portraitKey && G.showPortrait!==false){ drawPortrait(bx+120,by-70,0.62,CHARS[Dlg.portraitKey],Dlg.expr,time); }
+  ctx.fillStyle='rgba(12,10,8,.9)'; rr(bx,by,bw,bh,16); ctx.fill();
+  ctx.strokeStyle='rgba(216,178,74,.5)'; ctx.lineWidth=2.5; rr(bx,by,bw,bh,16); ctx.stroke();
+  ctx.strokeStyle='rgba(216,178,74,.18)'; ctx.lineWidth=1; rr(bx+5,by+5,bw-10,bh-10,12); ctx.stroke();
+  // 이름표
+  ctx.font="20px "+F.head; const nw=ctx.measureText(Dlg.who).width+34;
+  ctx.fillStyle=Dlg.tag; rr(bx+24,by-18,nw,36,8); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=1.5; rr(bx+24,by-18,nw,36,8); ctx.stroke();
+  ctx.fillStyle=C.white; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText(Dlg.who,bx+41,by+1);
+  // 본문
+  const vis=Dlg.text.slice(0,Math.floor(Dlg.shown));
+  ctx.font="25px "+F.body; ctx.fillStyle=C.cream; ctx.textBaseline='top';
+  const lines=wrap(vis,bw-90,"25px "+F.body);
+  lines.forEach((ln,i)=>ctx.fillText(ln,bx+40,by+34+i*36));
+  // 진행 화살표
+  if(Dlg.done){ const a=(Math.sin(time*6)*0.5+0.5); ctx.fillStyle='rgba(216,178,74,'+(0.4+a*0.6)+')';
+    ctx.beginPath(); ctx.moveTo(bx+bw-40,by+bh-30); ctx.lineTo(bx+bw-24,by+bh-30); ctx.lineTo(bx+bw-32,by+bh-18); ctx.fill(); }
+  ctx.textBaseline='alphabetic';
+}
+
+/* ============================================================
+   게임 상태
+   ============================================================ */
+const G={ scene:'title', showPortrait:true };
+let time=0;
+
+/* ---- 사건 데이터 ---- */
+const EVID=[
+  {id:'eval', name:'정신감정서', icon:'📋', col:'#c9a24a', desc:'국립법의학센터 정신감정 결과.\n사건 당시 피고인은 양극성장애\n조증 삽화 상태 — 판단력 저하 소견.\n※ 단, 심신「상실」수준은 아님.'},
+  {id:'cctv', name:'옥상 CCTV', icon:'📹', col:'#5183d0', desc:'09:07 피고인이 피해자를 밀침.\n09:08 피고인이 스스로 119에 신고.\n"사람이 떨어졌어요!"\n→ 현실 검증 능력 일부 유지.'},
+  {id:'coworker', name:'동료 진술서', icon:'🗒️', col:'#8a9a4a', desc:'사건 2주 전부터 피고인은 잠을\n거의 못 자고 과소비·과대망상을\n보였다. "평소의 그가 아니었다."'},
+  {id:'chart', name:'진료 기록', icon:'📁', col:'#b06a3a', desc:'3년 전 양극성장애 진단.\n최근 2개월 약물 임의 중단.\n조증 재발 경고가 기록돼 있음.'},
+  {id:'gavel', name:'재판장 의사봉', icon:'⚖️', col:C.gold, desc:'중립 재판장 이현중의 의사봉.\n「나는 어느 편도 아니다.\n 나는, 저울이다.」'}
+];
+// 검사 측 증언(완전책임) / 변호사 측 증언(심신상실)
+const PROS=[
+  {who:'pros', expr:'tense', text:'피고인 강도현은 사건 3주 전부터 피해자 민경표 부장에게 깊은 원한을 품어 왔습니다.'},
+  {who:'pros', expr:'tense', text:'사건 당일 아침, 피고인은 피해자를 옥상으로 직접 불러냈습니다. 우발적 사고가 아닙니다.'},
+  {who:'pros', expr:'shock', text:'그리고 피고인은 피해자를 난간 너머로 밀쳤습니다. 처음부터 끝까지 계획된 범행입니다.'},
+  {who:'pros', expr:'tense', text:'피고인에게는 그 어떤 정신적 문제도 없습니다. 완벽히 계산된, 냉정한 인물입니다.', key:'eval', over:'pros'}
+];
+const DEF=[
+  {who:'def', expr:'calm', text:'피고인은 사건 당시 양극성장애 조증 삽화의 한가운데 있었습니다. 감정서에 분명히 기록돼 있습니다.'},
+  {who:'def', expr:'tense', text:'며칠째 잠도 못 자고 과대망상에 사로잡혀 있었습니다. 그는 평소의 그가 아니었습니다.'},
+  {who:'def', expr:'shock', text:'피고인은 자신이 무슨 짓을 하는지 전혀 알지 못했습니다. 완전한 심신상실 — 무죄입니다.', key:'cctv', over:'def'},
+  {who:'def', expr:'sad', text:'이런 환자에게 형벌을 내리는 것은, 병든 사람을 감옥에 가두는 일일 뿐입니다.'}
+];
+
+/* ---- 심리(hearing) 상태 ---- */
+const H={ side:'pros', idx:0, prosTrimmed:false, defTrimmed:false,
+  order:100, trust:5, recordOpen:false, sel:0, pendingGavel:false, gavelSide:null, banner:0, drain:0.9, lock:false };
+function resetHearing(){ H.side='pros'; H.idx=0; H.prosTrimmed=false; H.defTrimmed=false; H.order=100; H.trust=5;
+  H.recordOpen=false; H.sel=0; H.pendingGavel=false; H.gavelSide=null; H.banner=1.2; H.lock=false;
+  scaleUI.pros=1; scaleUI.def=1; scaleUI.angle=0; scaleUI.glow=0; }
+function curList(){ return H.side==='pros'?PROS:DEF; }
+function curStmt(){ return curList()[H.idx]; }
+
+/* ---- 판결 로직 (순수함수, 검증용) ---- */
+function evalVerdict(resp){
+  // resp={capacity:'full'|'partial'|'none', disp:'punish'|'both'|'none'}
+  if(resp.capacity==='full') return {ok:false, lean:'pros', msg:'검사에게 기울었습니다. 정신감정서를 잊으셨습니까? 조증 삽화는 명백한 사실입니다.'};
+  if(resp.capacity==='none') return {ok:false, lean:'def', msg:'변호인에게 기울었습니다. CCTV 속, 스스로 119에 신고한 그 손을 보셨잖습니까?'};
+  // capacity==='partial'(심신미약)
+  if(resp.disp!=='both') return {ok:false, lean:'disp', msg:'책임은 옳게 보셨습니다. 허나 벌만으로도, 치료만으로도 진실은 반쪽입니다. 그 사이를 보십시오.'};
+  return {ok:true, lean:'center', msg:'심신미약 — 벌과 치료를 함께. 어느 쪽으로도 기울지 않은, 그 사이의 진실입니다.'};
+}
+function checkPresent(evId, stmt){ return !!(stmt && stmt.key && stmt.key===evId); }
+
+/* ============================================================
+   씬: 타이틀
+   ============================================================ */
+function enterTitle(){ G.scene='title'; clearButtons(); Dlg.active=false; initPaper();
+  btn({x:VW/2-150,y:520,w:300,h:66,label:'재판을 시작합니다',style:'gold',on:()=>{ Audio.gavel(); enterOpen(); }});
+  btn({x:VW/2-150,y:600,w:300,h:46,label:'※ 이현중의 첫 재판 (CASE 3)',style:'ghost',enabled:false});
+  sceneTap=null;
+}
+function drawTitle(){
+  ctx.drawImage(bgCanvas,0,0);
+  ctx.fillStyle='rgba(10,8,14,.5)'; ctx.fillRect(0,0,VW,VH);
+  // 두 인물 실루엣
+  drawPortrait(330,430,0.92,CHARS.mayoi,'calm',time);
+  drawPortrait(VW-330,430,0.92,CHARS.judge,'calm',time);
+  // 저울 심볼
+  ctx.save(); ctx.translate(VW/2,150); const sw=Math.sin(time*1.2)*0.06;
+  ctx.strokeStyle=C.goldHi; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(0,-46); ctx.lineTo(0,44); ctx.stroke();
+  ctx.save(); ctx.rotate(sw); ctx.beginPath(); ctx.moveTo(-70,-30); ctx.lineTo(70,-30); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-70,-6,22,0,3.14); ctx.arc(70,-6,22,0,3.14); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-70,-30); ctx.lineTo(-70,-6); ctx.moveTo(70,-30); ctx.lineTo(70,-6); ctx.stroke(); ctx.restore();
+  ctx.fillStyle=C.goldHi; ctx.beginPath(); ctx.arc(0,-46,8,0,6.28); ctx.fill(); ctx.restore();
+  // 타이틀
+  ctx.textAlign='center';
+  ctx.font="96px "+F.title;
+  ctx.lineWidth=8; ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.strokeText('중립재판',VW/2,340);
+  const tg=grad(VW/2-200,280,VW/2+200,360,[[0,'#e8ecff'],[.5,'#7f9bd8'],[1,'#25406e']]);
+  ctx.fillStyle=tg; ctx.fillText('중립재판',VW/2,340);
+  ctx.font="26px "+F.head; ctx.fillStyle=C.gold; ctx.fillText('역전재판 외전 · CASE 3',VW/2,384);
+  ctx.font="22px "+F.body; ctx.fillStyle=C.cream;
+  ctx.fillText('― 진실은, 언제나 그 사이에 있다 ―',VW/2,430);
+  // 이름표
+  labelName(330,300,'마요이 아야사토','판사',C.purpleHi);
+  labelName(VW-330,300,'이현중','정신과 의사',C.purpleHi);
+  ctx.textAlign='left';
+  drawButtons();
+}
+function labelName(x,y,name,role,col){ ctx.textAlign='center';
+  ctx.font="22px "+F.head; const w=ctx.measureText(name).width+40;
+  ctx.fillStyle=col; rr(x-w/2,y,w,34,8); ctx.fill();
+  ctx.fillStyle=C.white; ctx.fillText(name,x,y+23);
+  ctx.font="15px "+F.body; ctx.fillStyle=C.cream; ctx.fillText(role,x,y+54); }
+
+/* ============================================================
+   씬: 개정 (마요이 튜토리얼)
+   ============================================================ */
+function enterOpen(){ G.scene='open'; clearButtons(); H.banner=0;
+  Audio.resume();
+  const seq=[
+    ()=>say('mayoi','제3호 법정, 개정합니다. …이현중 선생님, 와 주셨군요.',n,'smile'),
+    ()=>say('mayoi','오늘 사건은 조금 특별합니다. 피고인의 정신 상태 자체가 쟁점이에요.',n,'calm'),
+    ()=>say('mayoi','그래서 정신과 의사인 당신을 「중립 재판장」으로 모셨습니다. 이 의사봉을 받으세요.',n,'calm'),
+    ()=>say('judge','제가… 재판장을 말입니까. 저는 진단은 해왔지만, 판결은 처음입니다.',n,'tense'),
+    ()=>say('mayoi','진단과 다르지 않아요. 다만 이번엔 두 개의 이야기를 듣게 됩니다. 검사와 변호사.',n,'calm'),
+    ()=>say('mayoi','검사는 「완전한 책임」을, 변호사는 「완전한 무죄」를 밀어붙일 겁니다. 양쪽 다 극단이죠.',n,'tense'),
+    ()=>say('mayoi','당신이 할 일은 셋. ① 양측 증언을 듣고 ② 과장된 주장엔 증거를 「제시」해 걷어내고',n,'calm'),
+    ()=>say('mayoi','③ 법정이 소란해지면 의사봉으로 「정숙」시키는 것. 어느 쪽으로도 기울지 마세요.',n,'calm'),
+    ()=>say('judge','…양쪽의 과장을 모두 걷어내면, 남는 것이 진실이다.',n,'calm'),
+    ()=>say('mayoi','바로 그겁니다. 진실은, 언제나 그 사이에 있으니까요. ― 그럼, 시작하죠.',n,'smile'),
+    ()=>{ enterHearing(); }
+  ];
+  let i=0; function n(){ if(i<seq.length){ seq[i++](); } }
+  n();
+  sceneTap=()=>{ dlgTap(); };
+}
+function drawOpen(){
+  ctx.drawImage(bgCanvas,0,0);
+  ctx.fillStyle='rgba(10,8,14,.32)'; ctx.fillRect(0,0,VW,VH);
+  drawScale();
+  drawDlg();
+  drawButtons();
+}
+
+/* ============================================================
+   씬: 심리 (법정 운영 코어)
+   ============================================================ */
+function enterHearing(){ G.scene='hearing'; resetHearing(); layoutHearing();
+  Dlg.active=false;
+  bannerSay();
+  sceneTap=()=>{ if(Dlg.active) dlgTap(); };
+}
+function bannerSay(){ H.banner=1.3;
+  const t=H.side==='pros'?'검사 측 증언 — 「완전한 책임」':'변호사 측 증언 — 「심신상실」';
+  Audio.page();
+}
+function layoutHearing(){
+  clearButtons();
+  btn({x:120,y:VH-88,w:150,h:56,label:'◀ 이전',style:'wood',on:prevStmt});
+  btn({x:280,y:VH-88,w:150,h:56,label:'다음 ▶',style:'wood',on:nextStmt});
+  btn({x:VW/2-90,y:VH-88,w:180,h:56,label:'⚖ 법정 기록',style:'navy',on:openRecord});
+  btn({x:VW-270,y:VH-88,w:150,h:56,label:'🔨 정숙!',style:'gold',on:doGavel});
+  btn({x:VW-115,y:VH-88,w:90,h:56,label:'중립\n판결',style:'ghost',on:tryVerdictBtn});
+}
+function prevStmt(){ if(H.lock) return; if(H.idx>0){ H.idx--; Audio.tap(); } }
+function nextStmt(){ if(H.lock) return; const l=curList(); if(H.idx<l.length-1){ H.idx++; Audio.tap(); }
+  else { // 증언 끝 → 안내
+    if(H.side==='pros'&&!H.prosTrimmed) hint('검사의 마지막 주장이 과합니다. 「법정 기록」의 증거로 반박하세요.');
+    else if(H.side==='def'&&!H.defTrimmed) hint('변호사의 결론이 과합니다. 증거로 「제시」해 걷어내세요.');
+  } }
+let hintMsg='', hintT=0;
+function hint(m){ hintMsg=m; hintT=3.2; Audio.tap(); }
+function openRecord(){ if(H.lock) return; H.recordOpen=true; H.sel=0; Audio.page(); }
+function closeRecord(){ H.recordOpen=false; }
+function presentSel(){
+  const ev=EVID[H.sel]; const st=curStmt();
+  if(checkPresent(ev.id, st)){
+    // 정답 — 과잉 걷어냄
+    H.recordOpen=false; H.lock=true;
+    if(st.over==='pros'){ H.prosTrimmed=true; scaleUI.pros=0; H.gavelSide='pros'; }
+    else { H.defTrimmed=true; scaleUI.def=0; H.gavelSide='def'; }
+    burst('인정!',C.goldHi,true); Audio.ding(); Audio.scale(); flash('rgba(216,178,74,.28)',0.4); shake(12,.4);
+    const line = st.over==='pros'
+      ? ['pros','…큭. 감정서가, 있었나.','정신감정서가 말합니다 — 피고인은 조증 삽화 중이었다. 검사의 「정신 문제 없음」은 과장입니다.']
+      : ['def','그, 그건…','CCTV가 말합니다 — 그는 스스로 119에 신고했다. 「전혀 알지 못했다」는 것은 과장입니다.'];
+    say(line[0], line[1], ()=>{
+      say('judge', line[2], ()=>{
+        // 반대측 소란 → 의사봉 필요
+        H.pendingGavel=true; H.order=Math.max(8,H.order-55);
+        const opp = st.over==='pros'?'def':'pros';
+        burst('이의있음!', opp==='pros'?C.crimsonHi:C.navyHi, false);
+        say(opp, opp==='def'?'재판장님! 그래도 환자입니다!':'재판장님! 그래도 범죄입니다!', ()=>{
+          say('mayoi','법정이 소란합니다. ― 의사봉으로 「정숙」시키세요.', ()=>{ Dlg.active=false; }, 'tense');
+        }, 'tense');
+      }, 'calm');
+    }, 'shock');
+  } else if(st.key && ev.id==='chart' && st.key==='eval'){
+    // 근접 오답(진료기록) — 페널티 없이 힌트
+    H.recordOpen=false; hint('관련은 있으나 결정적이지 않습니다. 「감정서」가 당시 상태를 직접 말합니다.'); Audio.buzz();
+  } else {
+    // 오답
+    H.recordOpen=false; burst('기각!',C.red,false); Audio.buzz(); flash('rgba(230,70,80,.24)',0.35);
+    H.trust=Math.max(0,H.trust-1); H.order=Math.max(0,H.order-14);
+    say('mayoi','그 증거는 이 진술과 맞지 않습니다. 신중히 — 어느 진술이 「과장」인지 보세요.', ()=>{ Dlg.active=false; if(H.trust<=0) mistrial(); }, 'tense');
+  }
+}
+function doGavel(){
+  if(H.pendingGavel){
+    H.pendingGavel=false; H.order=100; H.lock=false;
+    burst('정숙!',C.goldHi,true); Audio.gavel(); shake(16,.45); spawnDust(VW-195,VH-60,14,C.gold);
+    // 다음 단계로
+    if(H.side==='pros'&&H.prosTrimmed){
+      say('mayoi','좋습니다. 검사의 과장은 걷혔어요. 이제 변호인의 이야기를 듣죠.', ()=>{
+        H.side='def'; H.idx=0; bannerSay(); Dlg.active=false;
+      }, 'calm');
+    } else if(H.side==='def'&&H.defTrimmed){
+      say('mayoi','양쪽의 과장이 모두 걷혔습니다. …남은 것은, 그 사이의 진실. 판결을 내리세요.', ()=>{
+        Dlg.active=false; enterVerdict();
+      }, 'smile');
+    }
+  } else {
+    // 수동 정숙 — 질서 회복
+    if(H.order<95){ H.order=Math.min(100,H.order+26); Audio.gavel(); shake(8,.25); spawnDust(VW-195,VH-60,8,C.gold); burst('정숙!',C.goldHi,false); }
+    else Audio.tap();
+  }
+}
+function tryVerdictBtn(){
+  if(H.prosTrimmed&&H.defTrimmed){ enterVerdict(); }
+  else hint('아직 이릅니다. 양측의 과장을 모두 걷어낸 뒤에 판결할 수 있습니다.');
+}
+function mistrial(){ H.lock=true; flash('rgba(230,70,80,.4)',0.6); Audio.lose();
+  say('mayoi','…재판의 신뢰가 무너졌습니다. 이대로면 재판은 무효입니다.', ()=>{ enterGameover(); }, 'sad'); }
+
+function updateHearing(dt){
+  if(H.banner>0) H.banner-=dt;
+  if(hintT>0) hintT-=dt;
+  // 질서 서서히 감소(경미) — pendingGavel 아닐 때
+  if(!H.pendingGavel && !Dlg.active && !H.recordOpen){ H.order=Math.max(0,H.order-H.drain*dt);
+    if(H.order<=0){ H.order=45; H.trust=Math.max(0,H.trust-1); burst('소란!',C.red,false); Audio.buzz(); if(H.trust<=0){ mistrial(); } } }
+  // 진행 버튼 활성/비활성 (대사 중엔 탭으로 대사만 진행)
+  const busy=Dlg.active;
+  buttons.forEach(b=>{
+    if(b.label==='◀ 이전'||b.label==='다음 ▶') b.enabled=!H.lock&&!busy&&!H.recordOpen;
+    else if(b.label==='⚖ 법정 기록') b.enabled=!H.lock&&!busy;
+    else if(b.label==='🔨 정숙!') b.enabled=!busy;
+    else if(b.label==='중립\n판결') b.enabled=!H.lock&&!busy;
+  });
+}
+function drawHearing(){
+  ctx.drawImage(bgCanvas,0,0);
+  // 긴장 비네트(질서 낮을수록 붉게)
+  if(H.order<55){ const a=(55-H.order)/55*0.4; ctx.fillStyle='rgba(180,30,30,'+a+')';
+    const vg=ctx.createRadialGradient(VW/2,VH/2,240,VW/2,VH/2,760); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(150,20,20,'+a+')');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,VW,VH); }
+  // 화자 초상(증언대)
+  const st=curStmt(); const spKey=(Dlg.active&&Dlg.portraitKey)?Dlg.portraitKey:st.who;
+  const spExpr=(Dlg.active)?Dlg.expr:st.expr;
+  drawPortrait(VW/2,470,1.05,CHARS[spKey],spExpr,time);
+  // 증언중 배너
+  const label=H.side==='pros'?'검사 측 증언':'변호사 측 증언';
+  ctx.font="24px "+F.title; ctx.textAlign='left';
+  const col=H.side==='pros'?C.crimsonHi:C.navyHi;
+  ctx.fillStyle=col; rr(40,40,ctx.measureText(label).width+40,44,10); ctx.fill();
+  ctx.fillStyle=C.white; ctx.fillText(label,60,71);
+  ctx.fillStyle=C.green; ctx.font="18px "+F.head;
+  ctx.fillText('증언 중  '+(H.idx+1)+' / '+curList().length,44,108);
+  // 저울
+  drawScale();
+  // 신뢰도(상단 우측)
+  drawTrust();
+  // 질서 게이지
+  drawOrder();
+  // 증언 텍스트(대사창 스타일)
+  if(!Dlg.active){ drawStatement(st,col); }
+  else drawDlg();
+  drawButtons();
+  // 힌트
+  if(hintT>0){ ctx.globalAlpha=Math.min(1,hintT); ctx.fillStyle='rgba(20,16,10,.92)';
+    const w=wrap(hintMsg,VW-260,"20px "+F.body); const bh=w.length*28+24;
+    rr(130,150,VW-260,bh,10); ctx.fill(); ctx.strokeStyle=C.gold; ctx.lineWidth=2; rr(130,150,VW-260,bh,10); ctx.stroke();
+    ctx.fillStyle=C.goldHi; ctx.font="20px "+F.body; ctx.textAlign='center';
+    w.forEach((ln,i)=>ctx.fillText(ln,VW/2,162+i*28)); ctx.globalAlpha=1; ctx.textAlign='left'; }
+  // 증거 기록 오버레이
+  if(H.recordOpen) drawRecord();
+  // 펜딩 게이블 표시
+  if(H.pendingGavel){ const a=(Math.sin(time*7)*.5+.5); ctx.strokeStyle='rgba(216,178,74,'+(0.4+a*0.5)+')'; ctx.lineWidth=4;
+    rr(VW-270,VH-88,150,56,10); ctx.stroke(); }
+}
+function drawStatement(st,col){
+  const bx=100,by=VH-190,bw=VW-200,bh=150;
+  ctx.fillStyle='rgba(12,10,8,.9)'; rr(bx,by,bw,bh,16); ctx.fill();
+  ctx.strokeStyle=col; ctx.lineWidth=2.5; rr(bx,by,bw,bh,16); ctx.stroke();
+  const nm=CHARS[st.who].name;
+  ctx.font="20px "+F.head; const nw=ctx.measureText(nm).width+34;
+  ctx.fillStyle=CHARS[st.who].tag; rr(bx+24,by-18,nw,36,8); ctx.fill();
+  ctx.fillStyle=C.white; ctx.textBaseline='middle'; ctx.fillText(nm,bx+41,by+1);
+  ctx.textBaseline='top'; ctx.font="25px "+F.body; ctx.fillStyle=(st.over?C.goldHi:C.cream);
+  const lines=wrap(st.text,bw-90,"25px "+F.body);
+  lines.forEach((ln,i)=>ctx.fillText(ln,bx+40,by+34+i*36));
+  // 과장 주장 표식
+  if(st.over){ ctx.fillStyle=C.gold; ctx.font="15px "+F.head; ctx.textAlign='right';
+    ctx.fillText('※ 무언가 과장돼 있다…',bx+bw-24,by+bh-26); ctx.textAlign='left'; }
+  ctx.textBaseline='alphabetic';
+}
+function drawTrust(){
+  const x=VW-300,y=30;
+  ctx.font="15px "+F.head; ctx.fillStyle=C.cream; ctx.textAlign='right'; ctx.fillText('재판 신뢰도',x-10,y+18);
+  for(let i=0;i<5;i++){ const bx=x+i*30; ctx.fillStyle=i<H.trust?C.gold:'#3a3020';
+    rr(bx,y,24,18,4); ctx.fill(); ctx.strokeStyle='rgba(0,0,0,.4)'; ctx.lineWidth=1.5; rr(bx,y,24,18,4); ctx.stroke(); }
+  ctx.textAlign='left';
+}
+function drawOrder(){
+  const x=44,y=134,w=220,h=16;
+  ctx.fillStyle=C.cream; ctx.font="14px "+F.head; ctx.fillText('법정 질서',x,y-4);
+  ctx.fillStyle='#2a2214'; rr(x,y,w,h,8); ctx.fill();
+  const c=H.order>55?C.green:(H.order>25?C.amber:C.red);
+  ctx.fillStyle=c; rr(x,y,Math.max(4,w*H.order/100),h,8); ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,.4)'; ctx.lineWidth=1.5; rr(x,y,w,h,8); ctx.stroke();
+}
+function drawRecord(){
+  ctx.fillStyle='rgba(6,5,10,.72)'; ctx.fillRect(0,0,VW,VH);
+  const px=140,py=90,pw=VW-280,ph=VH-260;
+  ctx.fillStyle='#1a2740'; rr(px,py,pw,ph,16); ctx.fill();
+  ctx.strokeStyle=C.navyHi; ctx.lineWidth=3; rr(px,py,pw,ph,16); ctx.stroke();
+  ctx.fillStyle=C.navyHi; rr(px,py,pw,46,16); ctx.fill(); ctx.fillRect(px,py+30,pw,16);
+  ctx.fillStyle=C.white; ctx.font="24px "+F.head; ctx.textAlign='left'; ctx.fillText('⚖  법정 기록 — 증거품',px+22,py+32);
+  // 아이템 그리드
+  const gy=py+70; const cellW=110;
+  EVID.forEach((ev,i)=>{ const cx=px+24+i*(cellW+8), cy=gy;
+    ctx.fillStyle=i===H.sel?'#2e4778':'#223a5e'; rr(cx,cy,cellW,cellW,10); ctx.fill();
+    ctx.strokeStyle=i===H.sel?C.goldHi:'#43608c'; ctx.lineWidth=i===H.sel?3:1.5; rr(cx,cy,cellW,cellW,10); ctx.stroke();
+    ctx.font="40px "+F.body; ctx.textAlign='center'; ctx.fillStyle=ev.col; ctx.fillText(ev.icon,cx+cellW/2,cy+58);
+    ctx.font="15px "+F.head; ctx.fillStyle=C.white; ctx.fillText(ev.name,cx+cellW/2,cy+cellW-14); });
+  // 설명
+  const ev=EVID[H.sel]; const dx=px+24, dy=gy+cellW+22, dw=pw-48, dh=ph-(gy-py)-cellW-40;
+  ctx.fillStyle='#12203a'; rr(dx,dy,dw,dh,10); ctx.fill(); ctx.strokeStyle='#43608c'; ctx.lineWidth=1.5; rr(dx,dy,dw,dh,10); ctx.stroke();
+  ctx.fillStyle=C.goldHi; ctx.font="20px "+F.head; ctx.textAlign='left'; ctx.fillText(ev.icon+'  '+ev.name,dx+18,dy+30);
+  ctx.fillStyle=C.cream; ctx.font="19px "+F.body;
+  const lines=wrap(ev.desc,dw-40,"19px "+F.body); lines.forEach((ln,i)=>ctx.fillText(ln,dx+18,dy+58+i*28));
+  // 하단 버튼(오버레이 전용 탭)
+  drawOverlayBtn(px+pw-360,py+ph+16,160,52,'제시한다',C.crimsonHi);
+  drawOverlayBtn(px+pw-180,py+ph+16,160,52,'닫는다','#3a4a66');
+  ctx.textAlign='left';
+}
+function drawOverlayBtn(x,y,w,h,label,col){ ctx.fillStyle=col; rr(x,y,w,h,10); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.lineWidth=2; rr(x,y,w,h,10); ctx.stroke();
+  ctx.fillStyle=C.white; ctx.font="22px "+F.head; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(label,x+w/2,y+h/2); ctx.textBaseline='alphabetic'; ctx.textAlign='left'; }
+// 오버레이 클릭 처리
+overlayTap=function(x,y){
+  if(G.scene==='hearing'&&H.recordOpen){
+    const px=140,py=90,pw=VW-280,ph=VH-260, gy=py+70, cellW=110;
+    // 아이템 선택
+    for(let i=0;i<EVID.length;i++){ const cx=px+24+i*(cellW+8), cy=gy;
+      if(x>=cx&&x<=cx+cellW&&y>=cy&&y<=cy+cellW){ H.sel=i; Audio.tap(); return true; } }
+    // 제시
+    if(hit(px+pw-360,py+ph+16,160,52,x,y)){ Audio.tap(); presentSel(); return true; }
+    // 닫기
+    if(hit(px+pw-180,py+ph+16,160,52,x,y)){ Audio.tap(); closeRecord(); return true; }
+    return true; // 오버레이 내 다른 클릭 흡수
+  }
+  return false;
+};
+function hit(x,y,w,h,px,py){ return px>=x&&px<=x+w&&py>=y&&py<=y+h; }
+
+/* ============================================================
+   씬: 판결
+   ============================================================ */
+const VERD={ capacity:null, disp:null, result:null, phase:'choose' };
+function enterVerdict(){ G.scene='verdict'; VERD.capacity=null; VERD.disp=null; VERD.result=null; VERD.phase='choose';
+  clearButtons(); Dlg.active=false;
+  say('mayoi','자 ― 재판장 이현중. 당신의 판결을 세 조각으로 맞추세요. 책임과, 처분을.', ()=>{ layoutVerdict(); }, 'calm');
+  sceneTap=()=>{ if(Dlg.active) dlgTap(); };
+}
+function layoutVerdict(){ clearButtons();
+  // 책임능력
+  btn({x:130,y:300,w:320,h:70,label:'완전 책임',style:'crimson',on:()=>{VERD.capacity='full';Audio.tap();}});
+  btn({x:480,y:300,w:320,h:70,label:'심신미약 (부분책임)',style:'gold',on:()=>{VERD.capacity='partial';Audio.tap();}});
+  btn({x:830,y:300,w:320,h:70,label:'심신상실 (면책)',style:'navy',on:()=>{VERD.capacity='none';Audio.tap();}});
+  // 처분
+  btn({x:130,y:456,w:320,h:70,label:'엄중 처벌만',style:'crimson',on:()=>{VERD.disp='punish';Audio.tap();}});
+  btn({x:480,y:456,w:320,h:70,label:'처벌 + 치료 병행',style:'gold',on:()=>{VERD.disp='both';Audio.tap();}});
+  btn({x:830,y:456,w:320,h:70,label:'전부 면제',style:'navy',on:()=>{VERD.disp='none';Audio.tap();}});
+  // 확정
+  btn({x:VW/2-160,y:590,w:320,h:70,label:'⚖ 판결 확정',style:'gold',on:confirmVerdict});
+}
+function confirmVerdict(){
+  if(!VERD.capacity||!VERD.disp){ hint('책임과 처분, 둘 다 골라야 합니다.'); return; }
+  const r=evalVerdict({capacity:VERD.capacity, disp:VERD.disp});
+  VERD.result=r;
+  if(r.ok){ Audio.gavel(); enterEnding(); }
+  else{ Audio.buzz(); burst('재고!',C.red,false); shake(10,.35);
+    say('mayoi', r.msg, ()=>{ Dlg.active=false; }, 'tense'); }
+}
+function drawVerdict(){
+  ctx.drawImage(bgCanvas,0,0); ctx.fillStyle='rgba(10,8,14,.55)'; ctx.fillRect(0,0,VW,VH);
+  drawScale();
+  ctx.textAlign='center';
+  ctx.font="40px "+F.title; ctx.fillStyle=C.goldHi; ctx.fillText('최 종 판 결',VW/2,214);
+  ctx.font="20px "+F.body; ctx.fillStyle=C.cream; ctx.fillText('어느 쪽으로도 기울지 않은, 그 사이의 판결을.',VW/2,250);
+  if(!Dlg.active){
+    ctx.font="22px "+F.head; ctx.textAlign='left';
+    ctx.fillStyle=C.gold; ctx.fillText('① 피고인의 책임 능력',130,288);
+    ctx.fillStyle=C.gold; ctx.fillText('② 처분의 방향',130,444);
+    // 선택 표시
+    highlightSel();
+  }
+  drawButtons();
+  if(Dlg.active) drawDlg();
+  ctx.textAlign='left';
+}
+function highlightSel(){
+  buttons.forEach(b=>{
+    let on=false;
+    if(b.label==='완전 책임'&&VERD.capacity==='full')on=true;
+    if(b.label==='심신미약 (부분책임)'&&VERD.capacity==='partial')on=true;
+    if(b.label==='심신상실 (면책)'&&VERD.capacity==='none')on=true;
+    if(b.label==='엄중 처벌만'&&VERD.disp==='punish')on=true;
+    if(b.label==='처벌 + 치료 병행'&&VERD.disp==='both')on=true;
+    if(b.label==='전부 면제'&&VERD.disp==='none')on=true;
+    b._sel=on;
+  });
+}
+
+/* ============================================================
+   씬: 엔딩
+   ============================================================ */
+let endT=0, endSlam=0;
+function enterEnding(){ G.scene='end'; endT=0; endSlam=0; clearButtons(); Dlg.active=false;
+  scaleUI.pros=0; scaleUI.def=0; scaleUI.angle=0; scaleUI.glow=1;
+  // 3연타 게이블
+  let n=0; const slam=()=>{ if(n<3){ n++; endSlam=1; Audio.gavel(); shake(18,.4); spawnDust(VW/2,300,18,C.gold);
+    burst(n<3?'탕!':'탕—!',C.goldHi,true); setTimeout(slam,520); }
+    else{ Audio.win(); setTimeout(()=>{ endSeq(); },500); } };
+  setTimeout(slam,300);
+  sceneTap=()=>{ if(Dlg.active) dlgTap(); };
+}
+function endSeq(){
+  const seq=[
+    ()=>say('judge','주문. 피고인 강도현을 「심신미약」으로 인정한다.',n,'calm'),
+    ()=>say('judge','벌을 면할 수는 없다. 허나 그는 치료받아야 할 환자이기도 하다. ― 처벌과 치료를, 함께 명한다.',n,'calm'),
+    ()=>say('mayoi','…훌륭한 첫 재판이었습니다. 검사에게도, 변호사에게도 기울지 않았어요.',n,'smile'),
+    ()=>say('judge','양쪽의 과장을 걷어내니, 남은 건 이 사람이 정말 필요로 하던 것이었습니다.',n,'calm'),
+    ()=>say('mayoi','진실은, 언제나 그 사이에 있으니까요. ― 다음 사건도, 부탁드립니다. 이현중 재판장.',n,'smile'),
+    ()=>{ G.finale=true; layoutEnd(); }
+  ];
+  let i=0; function n(){ if(i<seq.length) seq[i++](); }
+  n();
+}
+function layoutEnd(){ clearButtons();
+  btn({x:VW/2-320,y:VH-96,w:300,h:64,label:'다시 재판하기',style:'wood',on:()=>enterHearing()});
+  btn({x:VW/2+20,y:VH-96,w:300,h:64,label:'타이틀로',style:'gold',on:()=>enterTitle()});
+}
+function drawEnding(){
+  ctx.drawImage(bgCanvas,0,0);
+  const g=ctx.createRadialGradient(VW/2,300,60,VW/2,300,600); g.addColorStop(0,'rgba(216,178,74,'+(0.14+scaleUI.glow*0.12)+')'); g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+  drawScale();
+  drawPortrait(330,470,0.9,CHARS.mayoi,'smile',time);
+  drawPortrait(VW-330,470,0.9,CHARS.judge,'calm',time);
+  if(G.finale){
+    ctx.textAlign='center';
+    ctx.font="72px "+F.title; ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillText('CASE 3  CLEAR',VW/2+3,262+3);
+    ctx.fillStyle=C.goldHi; ctx.fillText('CASE 3  CLEAR',VW/2,262);
+    ctx.font="26px "+F.head; ctx.fillStyle=C.cream; ctx.fillText('중립재판 성립 — 진실은, 언제나 그 사이에 있었다',VW/2,310);
+    ctx.font="17px "+F.body; ctx.fillStyle='#b8a67a';
+    ctx.fillText('다음 사건 예고 — 「기억하지 못하는 증인」 (CASE 4)',VW/2,342);
+    ctx.textAlign='left';
+  } else if(Dlg.active){ drawDlg(); }
+  drawButtons();
+}
+
+/* ============================================================
+   씬: 게임오버(재판 무효)
+   ============================================================ */
+function enterGameover(){ G.scene='gameover'; clearButtons();
+  btn({x:VW/2-320,y:460,w:300,h:64,label:'다시 심리하기',style:'gold',on:()=>enterHearing()});
+  btn({x:VW/2+20,y:460,w:300,h:64,label:'타이틀로',style:'wood',on:()=>enterTitle()});
+  Dlg.active=false; sceneTap=null;
+}
+function drawGameover(){
+  ctx.drawImage(bgCanvas,0,0); ctx.fillStyle='rgba(80,10,10,.5)'; ctx.fillRect(0,0,VW,VH);
+  ctx.textAlign='center';
+  ctx.font="72px "+F.title; ctx.fillStyle=C.red; ctx.fillText('재 판 무 효',VW/2,300);
+  ctx.font="24px "+F.body; ctx.fillStyle=C.cream; ctx.fillText('법정의 신뢰가 무너졌습니다. 침착하게, 다시.',VW/2,352);
+  ctx.font="18px "+F.body; ctx.fillStyle='#c8a67a'; ctx.fillText('힌트 — 「과장된 진술」에만 증거를 제시하세요. 소란하면 먼저 정숙을.',VW/2,392);
+  ctx.textAlign='left'; drawButtons();
+}
+
+/* ============================================================
+   공통: 버튼 렌더
+   ============================================================ */
+function drawButtons(){
+  buttons.forEach(b=>{ if(!b.vis) return;
+    if(b._t>0) b._t-=0.08;
+    const press=b._t>0?2:0;
+    const hov=(pointer.x>=b.x&&pointer.x<=b.x+b.w&&pointer.y>=b.y&&pointer.y<=b.y+b.h&&b.enabled);
+    let base,edge,txt=C.white;
+    switch(b.style){
+      case 'gold': base=b.enabled?C.gold:'#6a5a30'; edge=C.goldHi; txt='#2a2010'; break;
+      case 'crimson': base=C.crimson; edge=C.crimsonHi; break;
+      case 'navy': base=C.navy; edge=C.navyHi; break;
+      case 'ghost': base='rgba(40,32,20,.5)'; edge='rgba(216,178,74,.4)'; txt=C.cream; break;
+      default: base=b.enabled?C.wood:'#3a2c1a'; edge=C.woodHi;
+    }
+    ctx.save(); ctx.translate(0,press);
+    if(b._sel){ ctx.shadowColor=C.goldHi; ctx.shadowBlur=22; }
+    if(hov&&b.style!=='ghost'){ ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=14; }
+    ctx.fillStyle=base; rr(b.x,b.y,b.w,b.h,12); ctx.fill(); ctx.shadowBlur=0;
+    ctx.strokeStyle=b._sel?C.goldHi:edge; ctx.lineWidth=b._sel?4:2.5; rr(b.x,b.y,b.w,b.h,12); ctx.stroke();
+    if(hov&&b.enabled&&b.style!=='ghost'){ ctx.fillStyle='rgba(255,255,255,.08)'; rr(b.x,b.y,b.w,b.h,12); ctx.fill(); }
+    ctx.fillStyle=b.enabled?txt:'rgba(230,220,200,.4)'; ctx.font=(b.h>60?"23px ":"20px ")+F.head;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const parts=String(b.label).split('\n');
+    parts.forEach((p,i)=>ctx.fillText(p,b.x+b.w/2,b.y+b.h/2+(i-(parts.length-1)/2)*24));
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic'; ctx.restore();
+  });
+}
+
+/* ============================================================
+   이펙트 렌더
+   ============================================================ */
+function drawEffects(){
+  // 파티클
+  particles.forEach(p=>{ if(p.paper){ ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.globalAlpha=.5;
+      ctx.fillStyle=C.paper; ctx.fillRect(-p.s/2,-p.s*0.7,p.s,p.s*1.4); ctx.strokeStyle='rgba(120,100,60,.4)'; ctx.strokeRect(-p.s/2,-p.s*0.7,p.s,p.s*1.4); ctx.restore(); ctx.globalAlpha=1; }
+    else { ctx.globalAlpha=p.life; ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(p.x,p.y,p.s,0,6.28); ctx.fill(); ctx.globalAlpha=1; } });
+  // 버스트
+  bursts.forEach(b=>{ const k=b.t/b.life; const sc=k<0.2? (k/0.2)*1.15 : 1.15-(k-0.2)*0.18;
+    const alpha=k<0.75?1:(1-(k-0.75)/0.25);
+    ctx.save(); ctx.globalAlpha=Math.max(0,alpha); ctx.translate(VW/2,290);
+    const jitter=(1-k)*8; ctx.translate((Math.random()-.5)*jitter,(Math.random()-.5)*jitter);
+    ctx.scale(sc,sc); ctx.rotate(-0.06);
+    ctx.font=(b.big?"110px ":"74px ")+F.title; ctx.textAlign='center'; ctx.textBaseline='middle';
+    // 말풍선
+    const tw=ctx.measureText(b.text).width;
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#111'; ctx.lineWidth=3;
+    ctx.beginPath(); const rw=tw/2+40, rh=b.big?80:60;
+    for(let i=0;i<16;i++){ const a=i/16*6.28; const rr2=(i%2? (b.big?1:0.9):1.12); const ex=Math.cos(a)*rw*rr2, ey=Math.sin(a)*rh*rr2; i?ctx.lineTo(ex,ey):ctx.moveTo(ex,ey);} ctx.closePath();
+    ctx.fillStyle='rgba(255,255,255,.95)'; ctx.fill(); ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=4; ctx.stroke();
+    ctx.lineWidth=8; ctx.strokeStyle='#1a1a1a'; ctx.strokeText(b.text,0,4);
+    ctx.fillStyle=b.col; ctx.fillText(b.text,0,4);
+    ctx.restore(); ctx.globalAlpha=1; ctx.textAlign='left'; ctx.textBaseline='alphabetic'; });
+  // 플래시
+  if(flashT>0&&flashCol){ ctx.fillStyle=flashCol; ctx.globalAlpha=Math.min(1,flashT*2.5); ctx.fillRect(0,0,VW,VH); ctx.globalAlpha=1; }
+}
+function updateEffects(dt){
+  particles.forEach(p=>{ if(p.paper){ p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; if(p.y>VH+20){ Object.assign(p,newPaper(false)); } }
+    else { p.t+=dt; p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.life-=dt*1.5; } });
+  particles=particles.filter(p=>p.paper||p.life>0);
+  bursts.forEach(b=>b.t+=dt); bursts=bursts.filter(b=>b.t<b.life);
+  if(flashT>0) flashT-=dt;
+  if(shakeT>0){ shakeT-=dt; if(shakeT<=0) shakeAmp=0; }
+}
+
+/* ============================================================
+   메인 루프
+   ============================================================ */
+let last=0;
+function loop(ts){
+  const dt=Math.min(0.05,(ts-last)/1000||0); last=ts; time+=dt;
+  // update
+  updateDlg(dt); updateScale(dt); updateEffects(dt);
+  if(G.scene==='hearing') updateHearing(dt);
+  // render
+  ctx.setTransform(scale*DPR,0,0,scale*DPR,0,0);
+  ctx.clearRect(0,0,VW,VH);
+  let sx=0,sy=0; if(shakeT>0){ sx=(Math.random()-.5)*shakeAmp; sy=(Math.random()-.5)*shakeAmp; }
+  ctx.save(); ctx.translate(sx,sy);
+  switch(G.scene){
+    case 'title': drawTitle(); break;
+    case 'open': drawOpen(); break;
+    case 'hearing': drawHearing(); break;
+    case 'verdict': drawVerdict(); break;
+    case 'end': drawEnding(); break;
+    case 'gameover': drawGameover(); break;
+  }
+  // 종이 파티클(법정 씬 공통, 앞쪽)
+  if(G.scene!=='gameover') drawEffects();
+  else { drawEffects(); }
+  ctx.restore();
+  requestAnimationFrame(loop);
+}
+
+/* ---- 외부 검증 훅 ---- */
+window.C3={ G,H,VERD, evalVerdict, checkPresent, EVID,PROS,DEF, CHARS,
+  _present:(evId)=>{ H.sel=EVID.findIndex(e=>e.id===evId); presentSel(); },
+  _gavel:()=>doGavel(),
+  _tap:()=>{ if(Dlg.active){ dlgTap(); return true; } return false; },
+  _setIdx:(i)=>{ H.idx=i; },
+  _enterHearing:()=>enterHearing(),
+  _enterVerdict:()=>enterVerdict(),
+  _verdict:(cap,disp)=>{ VERD.capacity=cap; VERD.disp=disp; confirmVerdict(); },
+  _pending:()=>H.pendingGavel,
+  _dlgActive:()=>Dlg.active,
+  _loopOnce:(t)=>loop(t||16),
+  _openRecord:()=>{ H.recordOpen=true; },
+  _setScene:(s)=>{ G.scene=s; },
+  _burst:()=>burst('테스트',C.gold,true),
+  _state:()=>({scene:G.scene, side:H.side, idx:H.idx, prosTrimmed:H.prosTrimmed, defTrimmed:H.defTrimmed, order:Math.round(H.order), trust:H.trust, pending:H.pendingGavel, dlg:Dlg.active}) };
+
+/* ---- 부트 ---- */
+let booted=false;
+function boot(){
+  if(booted) return; booted=true;
+  resize(); buildBackground(); initPaper(); enterTitle();
+  const ld=document.getElementById('load'); if(ld) ld.style.display='none';
+  requestAnimationFrame(loop);
+}
+if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(boot); setTimeout(boot,1500); }
+else boot();
+})();
+</script>
+</body>
+</html>
