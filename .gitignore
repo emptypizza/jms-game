@@ -1,0 +1,5 @@
+# 로컬 빌드 산출물 — build-netlify-zip.sh 로 재생성 (git 미추적)
+netlify-deploy.zip
+
+# macOS
+.DS_Store
