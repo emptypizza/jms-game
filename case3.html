@@ -59,6 +59,25 @@ const F = {
   jua:"'Jua',sans-serif"
 };
 
+/* ---------- 키아트 이미지 (타이틀 + 인게임 포트레이트 공용) ----------
+   G4Q5qW.png / G4Q5qW-2.png 는 바이트 단위로 동일하므로 한 번만 로드해
+   타이틀 배경과 마요이·이현중 크롭 포트레이트에 함께 사용한다. */
+const ART={img:null,ready:false};
+(function(){ const im=new Image();
+  im.onload=()=>{ ART.img=im; ART.ready=true; };
+  im.onerror=()=>{ ART.ready=false; };   // 실패 시 기존 절차적 렌더로 폴백
+  im.src='refer/G4Q5qW.png';
+})();
+// 원본 1448×1086 기준 소스 크롭 영역
+const ART_CROP={ title:{sx:0,sy:0,sw:1448,sh:620} };  // 박힌 '중립재판' 로고 위쪽만
+/* 소스 사각형을 대상 사각형에 cover-fit 배치 (ay: 0=상단정렬 … 1=하단정렬) */
+function drawCover(img,sx,sy,sw,sh,dx,dy,dw,dh,ay){
+  ay=(ay==null)?0.5:ay; const s=Math.max(dw/sw,dh/sh);
+  const vsw=dw/s, vsh=dh/s;
+  const vsx=sx+(sw-vsw)*0.5, vsy=sy+(sh-vsh)*ay;
+  ctx.drawImage(img,vsx,vsy,vsw,vsh,dx,dy,dw,dh);
+}
+
 /* ---------- 캔버스 · 스케일 ---------- */
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 let scale=1, ox=0, oy=0, DPR=Math.min(window.devicePixelRatio||1,2);
@@ -214,14 +233,32 @@ function buildBackground(){
    인물 초상 (절차적, 플랫 일러스트)
    ============================================================ */
 const CHARS={
-  judge:{name:'재판장 이현중', hair:'#241c18', skin:'#e9c9a6', robe:'#2a2340', robe2:'#4a3568', accent:C.gold, glasses:true, tag:C.purpleHi},
-  mayoi:{name:'마요이 아야사토', hair:'#2a1e26', skin:'#f0d0b0', robe:'#26203a', robe2:'#5b3f86', accent:C.gold, bun:true, tag:C.purpleHi},
+  judge:{name:'재판장 이현중', hair:'#241c18', skin:'#e9c9a6', robe:'#2a2340', robe2:'#4a3568', accent:C.gold, glasses:true, tag:C.purpleHi, photo:{sx:842,sy:118,sw:452,sh:470}},
+  mayoi:{name:'마요이 아야사토', hair:'#2a1e26', skin:'#f0d0b0', robe:'#26203a', robe2:'#5b3f86', accent:C.gold, bun:true, tag:C.purpleHi, photo:{sx:296,sy:118,sw:410,sh:452}},
   pros:{name:'검사 서권일', hair:'#161314', skin:'#e7c39c', robe:'#3a1420', robe2:'#7c2333', accent:C.crimsonHi, slick:true, tag:C.crimson},
   def:{name:'변호사 나단우', hair:'#20211f', skin:'#eccaa4', robe:'#16233e', robe2:'#25406e', accent:C.navyHi, tidy:true, tag:C.navy},
   accused:{name:'피고인 강도현', hair:'#26221c', skin:'#dcc0a0', robe:'#3a3630', robe2:'#55504a', accent:'#888', messy:true, tag:'#555'}
 };
 // expression: 'calm','tense','shock','sad','smile'
+/* 키아트에서 크롭한 인물 흉상 (마요이·이현중) — 라운드 클립 + 스포트라이트 */
+function drawPhotoBust(x,y,s,def,expr,t){
+  const bob=Math.sin(t*3)*(expr==='tense'?3:1.4);
+  ctx.save(); ctx.translate(x,y+bob);
+  const sp=ctx.createRadialGradient(0,-30*s,20,0,-30*s,220*s);
+  sp.addColorStop(0,'rgba(255,240,210,.16)'); sp.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=sp; ctx.beginPath(); ctx.arc(0,-20*s,220*s,0,6.28); ctx.fill();
+  const bw=300*s, bh=384*s, bx=-bw/2, by=-196*s, rad=20*s;
+  ctx.save(); rr(bx,by,bw,bh,rad); ctx.clip();
+  const c=def.photo;
+  drawCover(ART.img,c.sx,c.sy,c.sw,c.sh,bx,by,bw,bh,0.08);
+  const fg=grad(0,by+bh-98*s,0,by+bh,[[0,'rgba(19,13,26,0)'],[1,'rgba(19,13,26,.92)']]);
+  ctx.fillStyle=fg; ctx.fillRect(bx,by,bw,bh);
+  ctx.restore();
+  ctx.strokeStyle=def.tag||C.gold; ctx.lineWidth=2.5*s; rr(bx,by,bw,bh,rad); ctx.stroke();
+  ctx.restore();
+}
 function drawPortrait(x,y,s,def,expr,t){
+  if(def.photo && ART.ready){ drawPhotoBust(x,y,s,def,expr,t); return; }
   ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
   // 스포트라이트 패널
   const sp=ctx.createRadialGradient(0,-30,20,0,-30,220); sp.addColorStop(0,'rgba(255,240,210,.14)'); sp.addColorStop(1,'rgba(0,0,0,0)');
@@ -439,35 +476,48 @@ function checkPresent(evId, stmt){ return !!(stmt && stmt.key && stmt.key===evId
    씬: 타이틀
    ============================================================ */
 function enterTitle(){ G.scene='title'; clearButtons(); Dlg.active=false; initPaper();
-  btn({x:VW/2-150,y:520,w:300,h:66,label:'재판을 시작합니다',style:'gold',on:()=>{ Audio.gavel(); enterOpen(); }});
-  btn({x:VW/2-150,y:600,w:300,h:46,label:'※ 이현중의 첫 재판 (CASE 3)',style:'ghost',enabled:false});
+  btn({x:VW/2-150,y:604,w:300,h:60,label:'재판을 시작합니다',style:'gold',on:()=>{ Audio.gavel(); enterOpen(); }});
+  btn({x:VW/2-150,y:672,w:300,h:40,label:'※ 이현중의 첫 재판 (CASE 3)',style:'ghost',enabled:false});
   sceneTap=null;
 }
 function drawTitle(){
-  ctx.drawImage(bgCanvas,0,0);
-  ctx.fillStyle='rgba(10,8,14,.5)'; ctx.fillRect(0,0,VW,VH);
-  // 두 인물 실루엣
-  drawPortrait(330,430,0.92,CHARS.mayoi,'calm',time);
-  drawPortrait(VW-330,430,0.92,CHARS.judge,'calm',time);
-  // 저울 심볼
-  ctx.save(); ctx.translate(VW/2,150); const sw=Math.sin(time*1.2)*0.06;
-  ctx.strokeStyle=C.goldHi; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(0,-46); ctx.lineTo(0,44); ctx.stroke();
-  ctx.save(); ctx.rotate(sw); ctx.beginPath(); ctx.moveTo(-70,-30); ctx.lineTo(70,-30); ctx.stroke();
-  ctx.beginPath(); ctx.arc(-70,-6,22,0,3.14); ctx.arc(70,-6,22,0,3.14); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-70,-30); ctx.lineTo(-70,-6); ctx.moveTo(70,-30); ctx.lineTo(70,-6); ctx.stroke(); ctx.restore();
-  ctx.fillStyle=C.goldHi; ctx.beginPath(); ctx.arc(0,-46,8,0,6.28); ctx.fill(); ctx.restore();
-  // 타이틀
+  if(ART.ready){
+    // 키아트: 박힌 로고 위쪽만 크롭해 상단에 커버-핏 (법정·저울·두 인물·이름표 포함)
+    const c=ART_CROP.title;
+    drawCover(ART.img,c.sx,c.sy,c.sw,c.sh,0,0,VW,438,0);
+    // 하단 테마 밴드 (투명→흑자주) — '공정재판' 문구 영역
+    ctx.fillStyle=grad(0,300,0,VH,[[0,'rgba(20,14,26,0)'],[.4,'rgba(20,14,26,.86)'],[1,'#120c18']]);
+    ctx.fillRect(0,300,VW,VH-300);
+    // 상단 금빛 글로우(저울 강조)
+    ctx.save(); ctx.globalAlpha=0.4+Math.sin(time*1.4)*0.12;
+    ctx.fillStyle=grad(0,0,0,150,[[0,'rgba(244,221,144,.16)'],[1,'rgba(244,221,144,0)']]);
+    ctx.fillRect(0,0,VW,150); ctx.restore();
+  } else {
+    // 폴백: 이미지 로딩 전 기존 절차적 타이틀
+    ctx.drawImage(bgCanvas,0,0);
+    ctx.fillStyle='rgba(10,8,14,.5)'; ctx.fillRect(0,0,VW,VH);
+    drawPortrait(330,430,0.92,CHARS.mayoi,'calm',time);
+    drawPortrait(VW-330,430,0.92,CHARS.judge,'calm',time);
+    ctx.save(); ctx.translate(VW/2,150); const sw=Math.sin(time*1.2)*0.06;
+    ctx.strokeStyle=C.goldHi; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(0,-46); ctx.lineTo(0,44); ctx.stroke();
+    ctx.save(); ctx.rotate(sw); ctx.beginPath(); ctx.moveTo(-70,-30); ctx.lineTo(70,-30); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-70,-6,22,0,3.14); ctx.arc(70,-6,22,0,3.14); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-70,-30); ctx.lineTo(-70,-6); ctx.moveTo(70,-30); ctx.lineTo(70,-6); ctx.stroke(); ctx.restore();
+    ctx.fillStyle=C.goldHi; ctx.beginPath(); ctx.arc(0,-46,8,0,6.28); ctx.fill(); ctx.restore();
+    labelName(330,300,'마요이 아야사토','판사',C.purpleHi);
+    labelName(VW-330,300,'이현중','정신과 의사',C.purpleHi);
+  }
+  // 타이틀 문구 (공정재판) — 항상 렌더 (이미지의 '중립재판' 로고는 크롭으로 배제됨)
+  const ty=ART.ready?508:340;
   ctx.textAlign='center';
   ctx.font="96px "+F.title;
-  ctx.lineWidth=8; ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.strokeText('공정재판',VW/2,340);
-  const tg=grad(VW/2-200,280,VW/2+200,360,[[0,'#e8ecff'],[.5,'#7f9bd8'],[1,'#25406e']]);
-  ctx.fillStyle=tg; ctx.fillText('공정재판',VW/2,340);
-  ctx.font="26px "+F.head; ctx.fillStyle=C.gold; ctx.fillText('역전재판 외전 · CASE 3',VW/2,384);
-  ctx.font="22px "+F.body; ctx.fillStyle=C.cream;
-  ctx.fillText('― 진실은, 언제나 그 사이에 있다 ―',VW/2,430);
-  // 이름표
-  labelName(330,300,'마요이 아야사토','판사',C.purpleHi);
-  labelName(VW-330,300,'이현중','정신과 의사',C.purpleHi);
+  ctx.lineWidth=8; ctx.strokeStyle='rgba(0,0,0,.66)'; ctx.strokeText('공정재판',VW/2,ty);
+  const tg=ART.ready
+    ? grad(VW/2-210,ty-60,VW/2+210,ty+18,[[0,'#f7e7ab'],[.5,'#e0bb52'],[1,'#9a7a28']])
+    : grad(VW/2-200,ty-60,VW/2+200,ty+20,[[0,'#e8ecff'],[.5,'#7f9bd8'],[1,'#25406e']]);
+  ctx.fillStyle=tg; ctx.fillText('공정재판',VW/2,ty);
+  ctx.font="26px "+F.head; ctx.fillStyle=C.gold; ctx.fillText('역전재판 외전 · CASE 3',VW/2,ty+42);
+  ctx.font="22px "+F.body; ctx.fillStyle=C.cream; ctx.fillText('― 진실은, 언제나 그 사이에 있다 ―',VW/2,ty+80);
   ctx.textAlign='left';
   drawButtons();
 }
