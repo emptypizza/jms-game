@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>중립재판 · CASE 3 — 진실은, 언제나 그 사이에 있다</title>
+<title>공정재판 · CASE 3 — 진실은, 언제나 그 사이에 있다</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gothic+A1:wght@400;700;900&family=Jua&display=swap" rel="stylesheet">
@@ -27,13 +27,13 @@
 <body>
 <a id="tohub" href="index.html" style="position:fixed;left:14px;top:14px;z-index:9999;font-family:'Gothic A1',system-ui,sans-serif;font-size:14px;font-weight:700;color:#f4ead2;background:rgba(20,14,8,.76);border:1px solid rgba(216,178,74,.5);border-radius:9px;padding:8px 13px;text-decoration:none;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)">← 메인</a>
 <div id="wrap"><canvas id="c"></canvas></div>
-<div id="hint">중립재판 · 외전 CASE 3 — 클릭 / 탭으로 진행</div>
+<div id="hint">공정재판 · 외전 CASE 3 — 클릭 / 탭으로 진행</div>
 <div id="load"><div class="r"></div><div>법정을 준비하는 중…</div></div>
 <script>
 (function(){
 "use strict";
 /* ============================================================
-   중립재판 · CASE 3 「진실은, 언제나 그 사이에 있다」
+   공정재판 · CASE 3 「진실은, 언제나 그 사이에 있다」
    정신과 의사 이현중이 '중립 재판장'이 되어 법정을 운영한다.
    검사(과잉처벌)와 변호사(과잉면책) 사이에서 진실을 찾는다.
    단일 HTML · Canvas2D · Web Audio 절차적 사운드 · 포인터/터치
@@ -459,9 +459,9 @@ function drawTitle(){
   // 타이틀
   ctx.textAlign='center';
   ctx.font="96px "+F.title;
-  ctx.lineWidth=8; ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.strokeText('중립재판',VW/2,340);
+  ctx.lineWidth=8; ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.strokeText('공정재판',VW/2,340);
   const tg=grad(VW/2-200,280,VW/2+200,360,[[0,'#e8ecff'],[.5,'#7f9bd8'],[1,'#25406e']]);
-  ctx.fillStyle=tg; ctx.fillText('중립재판',VW/2,340);
+  ctx.fillStyle=tg; ctx.fillText('공정재판',VW/2,340);
   ctx.font="26px "+F.head; ctx.fillStyle=C.gold; ctx.fillText('역전재판 외전 · CASE 3',VW/2,384);
   ctx.font="22px "+F.body; ctx.fillStyle=C.cream;
   ctx.fillText('― 진실은, 언제나 그 사이에 있다 ―',VW/2,430);
@@ -827,7 +827,7 @@ function drawEnding(){
     ctx.textAlign='center';
     ctx.font="72px "+F.title; ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillText('CASE 3  CLEAR',VW/2+3,262+3);
     ctx.fillStyle=C.goldHi; ctx.fillText('CASE 3  CLEAR',VW/2,262);
-    ctx.font="26px "+F.head; ctx.fillStyle=C.cream; ctx.fillText('중립재판 성립 — 진실은, 언제나 그 사이에 있었다',VW/2,310);
+    ctx.font="26px "+F.head; ctx.fillStyle=C.cream; ctx.fillText('공정재판 성립 — 진실은, 언제나 그 사이에 있었다',VW/2,310);
     ctx.font="17px "+F.body; ctx.fillStyle='#b8a67a';
     ctx.fillText('다음 사건 예고 — 「기억하지 못하는 증인」 (CASE 4)',VW/2,342);
     ctx.textAlign='left';

@@ -86,7 +86,7 @@ open index.html          # macOS
 |------|------|
 | `index.html` | 메인 화면 — 케이스 선택 허브 (CASE 1·2·3) |
 | `jms_cases.html` | CASE 1·2 본체 (PixiJS 인라인, 단일 HTML) |
-| `case3.html` | CASE 3 「중립재판」 — 재판장 법정 운영 (Canvas2D, 단일 HTML) |
+| `case3.html` | CASE 3 「공정재판」 — 재판장 법정 운영 (Canvas2D, 단일 HTML) |
 | `jms_game_분석.md` | 게임 구조·메커닉·내러티브·기술 분석 문서 |
 | `README.md` | 이 문서 |
 
@@ -95,7 +95,7 @@ open index.html          # macOS
 ## 구성 / 향후 계획
 
 - **CASE 1 · 2 · 3** 세 편을 메인 화면(`index.html`)에서 선택해 플레이합니다.
-- CASE 1·2는 정신과 진료 추리(PixiJS), CASE 3 「중립재판」은 정신과 의사가 **재판장**이 되어 법정을 운영하는 편(Canvas2D)입니다.
+- CASE 1·2는 정신과 진료 추리(PixiJS), CASE 3 「공정재판」은 정신과 의사가 **재판장**이 되어 법정을 운영하는 편(Canvas2D)입니다.
 - 메인 → 각 편, 각 편 → 「← 메인」 링크로 오갈 수 있습니다. (`index.html?` 딥링크: `jms_cases.html?case=1|2`)
 - 다음 편 예고: **CASE 4 「기억하지 못하는 증인」**.
 
